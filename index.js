@@ -1,9 +1,9 @@
 import express from "express";
-
+import fs from "fs";
 const app = express();
 app.use(express.json());
-
-let todos = [{ id: 1, name: "Wake up", checked: false }];
+const fileData = fs.readFileSync("./data.json", "utf-8");
+let todos = JSON.parse(fileData);
 
 app.get("/api/todos", (req, res) => {
   return res.send(todos);
