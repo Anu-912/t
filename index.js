@@ -1,65 +1,60 @@
 import express from "express";
 import fs from "fs";
+import { nanoid } from "nanoid";
+import bcrypt from "bcrypt";
+import todoRouter from "./routers/todo-router.js";
+
 const app = express();
 app.use(express.json());
-const fileData = fs.readFileSync("./data.json", "utf-8");
-let todos = JSON.parse(fileData);
 
-app.get("/api/todos", (req, res) => {
-  return res.send(todos);
+app.use("/api/todos", todoRouter);
+
+const userData = fs.readFileSync("./user.json", "utf-8");
+
+let users = JSON.parse(userData);
+
+const updateUserFile = () => {
+  fs.writeFileSync("./user.json", JSON.stringify(users), "utf-8");
+};
+
+app.get("/api/user", (req, res) => {
+  return res.send(users);
 });
-
-app.post("/api/todos", (req, res) => {
-  const name = req.body?.name;
-  if (!name) {
-    return res.status(400).send({ message: "Body must have name" });
-  }
-  const newTodo = {
-    id: todos[todos.length - 1].id + 1,
-    checked: false,
-    name,
-  };
-  todos.push(newTodo);
-  return res.send(newTodo);
-});
-
-app.delete("/api/todos/:id", (req, res) => {
-  const id = req.params.id; //string
-  const deletingItem = todos.find((todo) => todo.id == id);
-  if (!deletingItem) {
-    return res.status(404).send({ message: "Todo not found" });
-  }
-  todos = todos.filter((todo) => todo.id != id);
-  return res.send(deletingItem);
-});
-
-app.put("/api/todos/:id", (req, res) => {
-  const id = req.params.id;
-  const updatingItem = todos.find((todo) => todo.id == id);
-  if (!updatingItem) {
-    return res.status(404).send({ message: "Todo not found" });
-  }
-  const { name, checked } = req.body;
-  console.log({ name, checked });
-  console.log(!name);
-  console.log(checked === undefined);
-  if (!name || checked !== undefined) {
+app.post("/api/user/check", (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
     return res
       .status(400)
-      .send({ message: "Body must have atleast name or checked" });
+      .send({ message: "Body must have username and password" });
   }
-  const updatedTodo = {
-    ...updatingItem,
-    ...(name && { name }),
-    ...(checked !== undefined && { checked }),
+
+  // testPassword.test(password);
+  const existingUser = users.find((user) => user.username === username);
+  const isMatching = bcrypt.compareSync(password, existingUser.password);
+  return res.send(isMatching);
+});
+app.post("/api/user", (req, res) => {
+  if (
+    !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
+      password,
+    )
+  ) {
+    return res.status(400).send({
+      message:
+        "Password must include at least 8 characters, upper case, lower case, special characters and numbers.",
+    });
+  }
+  const hashedPassword = bcrypt.hashSync(password, 10);
+
+  // ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$ regex of password
+  const newUser = {
+    id: nanoid(),
+    username,
+    password: hashedPassword,
   };
-  todos = todos.map((todo) => {
-    if (todo.id == id) {
-      return updatedTodo;
-    }
-    return todo;
-  });
-  return res.send(updatedTodo);
+  users.push(newUser);
+  updateUserFile();
+  return res.send(newUser);
 });
 
 app.listen(5400, () => {
