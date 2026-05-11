@@ -9,16 +9,43 @@ const updateTodoFiles = () => {
 };
 
 router.get("/", (req, res) => {
+  const rawToken = req.headers.authorization;
+  if (!rawToken.startsWith("Bearer")) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const token = rawToken.split(" ")[1];
+  let playload = null;
+  try {
+    playload = jwt.verify(token, "Blub123");
+  } catch (e) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const existingUser = users.find((user) => user.id === playload.id);
+  const userTodos = todos.filter((todo) => todo.userId === existingUser.id);
   return res.send(todos);
 });
 
-router.post("/api/todos", (req, res) => {
+router.post("/api/todos", async (req, res) => {
+  const rawToken = req.headers.authorization;
+  if (!rawToken.startsWith("Bearer")) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const token = rawToken.split(" ")[1];
+  let playload = null;
+  try {
+    playload = jwt.verify(token, "Blub123");
+  } catch (e) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const existingUser = users.find((user) => user.id === playload.id);
+  const userTodos = todos.filter((todo) => todo.userId === existingUser.id);
   const name = req.body?.name;
   if (!name) {
     return res.status(400).send({ message: "Body must have name" });
   }
   const newTodo = {
     id: nanoid(),
+    userId: existingUser.id,
     checked: false,
     name,
   };
