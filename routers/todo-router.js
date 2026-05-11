@@ -68,6 +68,19 @@ router.put("/:id", (req, res) => {
   return res.send(updatedTodo);
 });
 router.get("/:id", (req, res) => {
+  const rawToken = req.headers.authorization;
+  if (!rawToken.startsWith("Bearer")) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const token = rawToken.split(" ")[1];
+  let playload = null;
+  try {
+    playload = jwt.verify(token, "Blub123");
+  } catch (e) {
+    return res.status(401).send({ message: "Invalid token" });
+  }
+  const existingUser = users.find((user) => user.id === playload.id);
+  return res.send(existingUser);
   const id = req.params.id;
   const item = todos.find((todo) => todo.id === id);
   if (!item) {
