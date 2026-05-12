@@ -3,7 +3,7 @@ import cors from "cors";
 import todoRouter from "./routers/todo-router.js";
 import authRouter from "./routers/auth-router.js";
 import mongoose from "mongoose";
-import { userModel } from "./models/usermodel.js";
+import { userModel } from "./models/user-model.js";
 
 const app = express();
 app.use(express.json());
@@ -13,7 +13,7 @@ app.use("/api/todos", todoRouter);
 app.use("/api/auth", authRouter);
 
 app.get("/api/user", async (req, res) => {
-  const user = await userModel.find;
+  const user = await userModel.find();
   return res.send(user);
 });
 

@@ -1,19 +1,12 @@
 import express from "express";
-import fs from "fs";
 import { nanoid } from "nanoid";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-
-const userData = fs.readFileSync("./user.json", "utf-8");
-let users = JSON.parse(userData);
-
-const updateUserFile = () => {
-  fs.writeFileSync("./user.json", JSON.stringify(users), "utf-8");
-};
+import { userModel } from "../models/user-model.js";
 
 const router = express.Router();
 
-router.post("/signup", (req, res) => {
+router.post("/signup", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res
@@ -21,7 +14,7 @@ router.post("/signup", (req, res) => {
       .send({ message: "Body must have username and password" });
   }
 
-  const existingUser = users.find((user) => user.username === username);
+  const existingUser = await userModel.findOne({ username: username });
 
   if (existingUser) {
     return res.status(400).send({ message: "Username already exists" });
@@ -44,24 +37,21 @@ Password must contain:
 
   const hashedPassword = bcrypt.hashSync(password, 10);
 
-  const newUser = {
-    id: nanoid(),
+  const newUser = await userModel.create({
+    _id: nanoid(),
     username,
     password: hashedPassword,
-  };
-  users.push(newUser);
-  updateUserFile();
+  });
   return res.send(newUser);
 });
-
-router.post("/signin", (req, res) => {
+router.post("/signin", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res
       .status(400)
       .send({ message: "Body must have username and password" });
   }
-  const existingUser = users.find((user) => user.name === username);
+  const existingUser = await userModel.findOne({ username: username });
   if (!existingUser) {
     return res.status(401).send({ message: "wrong credentials" });
   }
@@ -69,25 +59,14 @@ router.post("/signin", (req, res) => {
   if (!isMatching) {
     return res.status(401).send({ message: "wrong credentials" });
   }
-  const { password: hashedPassword, ...userWithoutPassword } = existingUser;
+  const { password: hashedPassword, ...userWithoutPassword } =
+    existingUser.toJSON();
   const accessToken = jwt.sign(userWithoutPassword, "Blub123", {
     expiresIn: "5m",
   });
   return res.send({ message: "successfully signed in", accessToken });
 });
 router.get("/me", (req, res) => {
-  const rawToken = req.headers.authorization;
-  if (!rawToken.startsWith("Bearer")) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const token = rawToken.split(" ")[1];
-  let playload = null;
-  try {
-    playload = jwt.verify(token, "Blub123");
-  } catch (e) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const existingUser = users.find((user) => user.id === playload.id);
-  return res.send(existingUser);
+  return res.send(req.user);
 });
 export default router;

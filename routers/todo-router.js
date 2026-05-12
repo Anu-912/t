@@ -1,117 +1,73 @@
 import express from "express";
-import fs from "fs";
 import { nanoid } from "nanoid";
+import { TodoModel } from "../models/todo-model.js";
+import { auth } from "../authmiddleware.js";
 const router = express.Router();
-const fileData = fs.readFileSync("./data.json", "utf-8");
-let todos = JSON.parse(fileData);
-const updateTodoFiles = () => {
-  fs.writeFileSync("./data.json", JSON.stringify(todos), "utf-8");
-};
-
-router.get("/", (req, res) => {
-  const rawToken = req.headers.authorization;
-  if (!rawToken.startsWith("Bearer")) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const token = rawToken.split(" ")[1];
-  let playload = null;
-  try {
-    playload = jwt.verify(token, "Blub123");
-  } catch (e) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const existingUser = users.find((user) => user.id === playload.id);
-  const userTodos = todos.filter((todo) => todo.userId === existingUser.id);
+router.get("/all", async (req, res) => {
+  const todos = await TodoModel.find();
   return res.send(todos);
 });
 
-router.post("/api/todos", async (req, res) => {
-  const rawToken = req.headers.authorization;
-  if (!rawToken.startsWith("Bearer")) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const token = rawToken.split(" ")[1];
-  let playload = null;
-  try {
-    playload = jwt.verify(token, "Blub123");
-  } catch (e) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const existingUser = users.find((user) => user.id === playload.id);
-  const userTodos = todos.filter((todo) => todo.userId === existingUser.id);
+router.get("/", async (req, res) => {
+  const todos = await TodoModel.find({ userId: req.user._id });
+  return res.send(todos);
+});
+
+router.post("/api/todos", auth, async (req, res) => {
   const name = req.body?.name;
   if (!name) {
-    return res.status(400).send({ message: "Body must have name" });
+    return res.status(400).send({ message: "body must have name" });
   }
-  const newTodo = {
-    id: nanoid(),
-    userId: existingUser.id,
-    checked: false,
+  const newTodo = await TodoModel.create({
+    _id: nanoid(),
+    userId: req.user._id,
     name,
-  };
-  todos.push(newTodo);
-  updateTodoFiles();
+  });
   return res.send(newTodo);
 });
 
-router.delete("/:id", (req, res) => {
-  const id = req.params.id; //string
-  const deletingItem = todos.find((todo) => todo.id == id);
+router.delete("/:id", auth, async (req, res) => {
+  const id = req.params.id;
+  const user = req.user;
+  const deletingItem = await TodoModel.findOne({ _id: id });
   if (!deletingItem) {
     return res.status(404).send({ message: "Todo not found" });
   }
-  todos = todos.filter((todo) => todo.id != id);
-  updateTodoFiles();
+  if (user._id !== deletingItem.userId) {
+    return res.status(403).send({ message: "forbidden" });
+  }
+  await TodoModel.deleteOne({ _id: deletingItem._id });
+
   return res.send(deletingItem);
 });
 
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   const id = req.params.id;
-  const updatingItem = todos.find((todo) => todo.id == id);
+  const updatingItem = await TodoModel.findById(id);
   if (!updatingItem) {
     return res.status(404).send({ message: "Todo not found" });
   }
   const { name, checked } = req.body;
-  console.log({ name, checked });
-  console.log(!name);
-  console.log(checked === undefined);
-  if (!name || checked !== undefined) {
+  if (name === undefined && checked === undefined) {
     return res
       .status(400)
       .send({ message: "Body must have atleast name or checked" });
   }
   const updatedTodo = {
-    ...updatingItem,
+    ...updatingItem.toJSON(),
     ...(name && { name }),
     ...(checked !== undefined && { checked }),
+    new: true,
   };
-  todos = todos.map((todo) => {
-    if (todo.id == id) {
-      return updatedTodo;
-    }
-    return todo;
-  });
-  updateTodoFiles();
+  await TodoModel.updateOne({ _id: id }, updatedTodo);
+
   return res.send(updatedTodo);
 });
-router.get("/:id", (req, res) => {
-  const rawToken = req.headers.authorization;
-  if (!rawToken.startsWith("Bearer")) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const token = rawToken.split(" ")[1];
-  let playload = null;
-  try {
-    playload = jwt.verify(token, "Blub123");
-  } catch (e) {
-    return res.status(401).send({ message: "Invalid token" });
-  }
-  const existingUser = users.find((user) => user.id === playload.id);
-  return res.send(existingUser);
+router.get("/:id", async (req, res) => {
   const id = req.params.id;
-  const item = todos.find((todo) => todo.id === id);
+  const item = await TodoModel.findById(id);
   if (!item) {
-    return res.status(404).send({ message: "todo not found" });
+    return res.status(404).send({ message: "Todo not found" });
   }
   return res.send(item);
 });
